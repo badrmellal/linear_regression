@@ -3,14 +3,13 @@ import pandas as pd
 import tarfile
 import urllib.request
 import numpy as np
-from matplotlib import pyplot as plt
-from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.pipeline import make_pipeline, Pipeline
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.pipeline import make_pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
+from sklearn.tree import DecisionTreeRegressor
 
 def load_housing_data():
     tarball_path = Path("datasets/housing.tgz")
@@ -30,17 +29,17 @@ housing["income_cat"] = pd.cut(housing["median_income"],
                                bins=[0., 1.5, 3.0, 4.5, 6., np.inf],
                                labels=[1, 2, 3, 4, 5])
 
-# Stratified train-test split based on income categories
+# Stratified train and test split
 strat_train_set, strat_test_set = train_test_split(housing,
                                                    test_size=0.2,
                                                    stratify=housing["income_cat"],
                                                    random_state=42)
 
-# Drop the income category column as it's no longer needed
+# Drop the income category column
 for set_ in (strat_train_set, strat_test_set):
     set_.drop("income_cat", axis=1, inplace=True)
 
-# Separate features and labels
+# Separate features and labels for training
 housing_train = strat_train_set.drop("median_house_value", axis=1)
 housing_labels = strat_train_set["median_house_value"].copy()
 
@@ -68,33 +67,42 @@ preprocessing = ColumnTransformer([
     ("cat", cat_pipeline, cat_attribs)
 ])
 
-# Apply transformations to the training data
-housing_prepared = preprocessing.fit_transform(housing_train)
+# Combine preprocessing with DecisionTreeRegressor in a pipeline.
+tree_reg = make_pipeline(
+    preprocessing,
+    DecisionTreeRegressor(random_state=42)
+)
 
-# Just to inspect the transformed data shape
-print("Transformed data shape:", housing_prepared.shape)
+# Set up hyperparameter grid for tuning
+parameters = {
+    'decisiontreeregressor__max_depth': [5, 10, 15, None],
+    'decisiontreeregressor__min_samples_split': [10, 20, 50],
+    'decisiontreeregressor__min_samples_leaf': [1, 5, 10]
+}
 
-# Combine the preprocessing pipeline with the Linear Regression model
-full_pipeline = Pipeline([
-    ("preprocessing", preprocessing),
-    ("linear_reg", LinearRegression()),
-])
+# GridSearchCV with cross validation
+grid_search = GridSearchCV(
+    tree_reg,
+    parameters,
+    cv=5,
+    scoring='neg_mean_squared_error',
+    return_train_score=True
+)
+grid_search.fit(housing_train, housing_labels)
 
-# Train the model
-full_pipeline.fit(housing_train, housing_labels)
+# Best model after tuning
+best_model = grid_search.best_estimator_
+print("Best parameters:", grid_search.best_params_)
 
-# Evaluate using cross validation
-scores = cross_val_score(full_pipeline, housing_train, housing_labels, scoring="neg_mean_squared_error", cv=10)
-rmse_scores = np.sqrt(-scores)
-print("Cross validation RMSE scores:", rmse_scores)
-print("Average RMSE:", rmse_scores.mean())
+# Evaluate on training set using cross validation results with the best score
+train_rmse = np.sqrt(-grid_search.best_score_)
+print("Best CV RMSE:", train_rmse)
 
-# Prepare the test data
+# Prepare test data
 X_test = strat_test_set.drop("median_house_value", axis=1)
 y_test = strat_test_set["median_house_value"].copy()
 
-# Make predictions on the test set
-final_predictions = full_pipeline.predict(X_test)
-final_mse = mean_squared_error(y_test, final_predictions)
-final_rmse = np.sqrt(final_mse)
-print("Test set RMSE:", final_rmse)
+# Predict on test data using the best model
+test_predictions = best_model.predict(X_test)
+test_rmse = np.sqrt(mean_squared_error(y_test, test_predictions))
+print("Test RMSE:", test_rmse)
