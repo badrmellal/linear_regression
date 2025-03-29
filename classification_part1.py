@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn import datasets
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
@@ -9,8 +10,8 @@ from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score, precision_recall_curve, \
     roc_curve, roc_auc_score
 
-# Load the iris dataset (we'll use it for a binary classification task)
-# We'll classify whether a flower is Iris-Setosa (class 0) or not (class 1)
+# we'll use iris dataset for a binary classification task
+# we'll classify whether a flower is Iris-Setosa (class 0) or not (class 1)
 iris = datasets.load_iris()
 X = iris["data"][:, (2, 3)]  # Petal length and width
 y = (iris["target"] == 1).astype(int)  # 1 if Versicolor, 0 if not
@@ -21,8 +22,6 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 # Binary Classification using different models
 
 # 1. Linear SVC model
-# Linear Support Vector Classification is a linear classifier that tries to find
-# the hyperplane that maximizes the margin between the two classes
 svm_clf = Pipeline([
     ("scaler", StandardScaler()),  # Scale features for better convergence
     ("linear_svc", LinearSVC(C=1, loss="hinge", random_state=42)),
@@ -30,9 +29,7 @@ svm_clf = Pipeline([
 svm_clf.fit(X_train, y_train)
 svm_pred = svm_clf.predict(X_test)
 
-# 2. SGD Classifier with hinge loss (equivalent to SVM)
-# Stochastic Gradient Descent is an optimization algorithm that updates
-# parameters using small batches of training data
+# 2. SGD Classifier with hinge loss
 sgd_clf = Pipeline([
     ("scaler", StandardScaler()),
     ("sgd", SGDClassifier(loss="hinge", learning_rate="constant", eta0=0.001,
@@ -42,7 +39,6 @@ sgd_clf.fit(X_train, y_train)
 sgd_pred = sgd_clf.predict(X_test)
 
 # 3. Logistic Regression
-# Logistic Regression estimates probability of a binary outcome
 log_reg = Pipeline([
     ("scaler", StandardScaler()),
     ("log_reg", LogisticRegression(C=10, random_state=42)),
@@ -50,10 +46,14 @@ log_reg = Pipeline([
 log_reg.fit(X_train, y_train)
 log_pred = log_reg.predict(X_test)
 
+# 4. Random Forest Classifier
+rf_clf = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=42)
+rf_clf.fit(X_train, y_train)
+rf_pred = rf_clf.predict(X_test)
 
 # Performance Evaluation
 
-# Function to evaluate and print metrics for each classifier
+# Function to evaluate metrics for each classifier
 def evaluate_classifier(clf, name, X_test, y_test):
     y_pred = clf.predict(X_test)
     cm = confusion_matrix(y_test, y_pred)
@@ -75,6 +75,7 @@ def evaluate_classifier(clf, name, X_test, y_test):
 svm_metrics = evaluate_classifier(svm_clf, "Linear SVM", X_test, y_test)
 sgd_metrics = evaluate_classifier(sgd_clf, "SGD Classifier", X_test, y_test)
 log_metrics = evaluate_classifier(log_reg, "Logistic Regression", X_test, y_test)
+rf_metrics = evaluate_classifier(rf_clf, "Random Forest", X_test, y_test)
 
 
 # ======== Decision Boundaries Visualization =========
@@ -116,7 +117,6 @@ plot_decision_boundaries([svm_clf, sgd_clf, log_reg],
 
 #  ROC Curve and Precision-Recall Curve
 
-# For models that can predict probabilities, we can create ROC and Precision-Recall curves
 def plot_roc_precision_recall_curves(clf, X_test, y_test, name):
     plt.figure(figsize=(12, 5))
 
@@ -152,7 +152,7 @@ def plot_roc_precision_recall_curves(clf, X_test, y_test, name):
     plt.show()
 
 
-# Plot ROC and Precision-Recall curves for Logistic Regression (supports probability estimation)
+# Plot ROC and Precision-Recall curves for Logistic Regression
 plot_roc_precision_recall_curves(log_reg, X_test, y_test, "Logistic Regression")
 
 
