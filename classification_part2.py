@@ -1,13 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.datasets import fetch_openml
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import SGDClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.metrics import ConfusionMatrixDisplay
+from sklearn.utils import check_random_state
 import time
 
 # Load and Prepare MNIST Dataset
@@ -25,21 +26,32 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=10000, train_size=30000, random_state=42
 )
 
+# Convert pandas DataFrame to numpy array because i had an error loading data
+if hasattr(X_train, 'values'):  # Check if it's a pandas DataFrame
+    X_train_array = X_train.values
+    X_test_array = X_test.values
+else:
+    X_train_array = X_train
+    X_test_array = X_test
 
-#  Visualize Some Examples
+# Visualize Some Examples
 def plot_digit(image_data):
     """Plot a single digit from the MNIST dataset."""
     image = image_data.reshape(28, 28)
     plt.imshow(image, cmap="binary")
     plt.axis("off")
 
-
 # Plot a few examples
 plt.figure(figsize=(15, 5))
 for i in range(10):
-    plt.subplot(2, 5, i + 1)
-    plot_digit(X_train[y_train == i][0])
-    plt.title(f"Digit: {i}")
+    # Find indices where y_train equals i
+    digit_indices = np.where(y_train == i)[0]
+    if len(digit_indices) > 0:
+        # Get the first image with this label
+        first_image = X_train_array[digit_indices[0]]
+        plt.subplot(2, 5, i + 1)
+        plot_digit(first_image)
+        plt.title(f"Digit: {i}")
 plt.tight_layout()
 plt.show()
 
@@ -49,8 +61,8 @@ plt.show()
 
 # First we scale features for better performance
 scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
+X_train_scaled = scaler.fit_transform(X_train_array)
+X_test_scaled = scaler.transform(X_test_array)
 
 # Model 1: SGD Classifier
 print("Training SGD Classifier...")
@@ -80,7 +92,6 @@ forest_clf.fit(X_train_scaled, y_train)
 forest_time = time.time() - start_time
 print(f"Random Forest Classifier trained in {forest_time:.2f} seconds")
 
-
 # Evaluate Models and print metrics for each classifier
 def evaluate_classifier(clf, name, X_test, y_test):
     print(f"\n--- {name} Performance ---")
@@ -98,13 +109,12 @@ def evaluate_classifier(clf, name, X_test, y_test):
 
     return y_pred, accuracy
 
-
 # Evaluate each classifier
 sgd_pred, sgd_accuracy = evaluate_classifier(sgd_clf, "SGD Classifier", X_test_scaled, y_test)
 svm_pred, svm_accuracy = evaluate_classifier(svm_clf, "SVM Classifier", X_test_scaled[:1000], y_test[:1000])
 rf_pred, rf_accuracy = evaluate_classifier(forest_clf, "Random Forest Classifier", X_test_scaled, y_test)
 
-#  Confusion Matrix Visualization
+# Confusion Matrix Visualization
 plt.figure(figsize=(10, 10))
 cm = confusion_matrix(y_test, sgd_pred)
 disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.unique(y))
@@ -123,11 +133,10 @@ if len(misclassified_indices) > 0:
     plt.figure(figsize=(15, 10))
     for i, idx in enumerate(misclassified_indices[:15]):  # Show up to 15 misclassified examples
         plt.subplot(3, 5, i + 1)
-        plot_digit(X_test.iloc[idx])
+        plot_digit(X_test_array[idx])
         plt.title(f"Pred: {y_pred[idx]}, True: {y_test[idx]}")
     plt.tight_layout()
     plt.show()
-
 
 # One-vs-All (OvA) Strategy
 def train_binary_classifier(digit, X, y):
@@ -136,7 +145,6 @@ def train_binary_classifier(digit, X, y):
     clf = SGDClassifier(random_state=42)
     clf.fit(X, y_binary)
     return clf
-
 
 # Let's train binary classifiers for a few digits
 print("\n--- One-vs-All (OvA) Strategy ---")
