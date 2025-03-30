@@ -19,6 +19,9 @@ y = (iris["target"] == 1).astype(int)  # 1 if Versicolor, 0 if not
 # Split the dataset into training and test sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+
+
+
 # Binary Classification using different models
 
 # 1. Linear SVC model
@@ -78,7 +81,7 @@ log_metrics = evaluate_classifier(log_reg, "Logistic Regression", X_test, y_test
 rf_metrics = evaluate_classifier(rf_clf, "Random Forest", X_test, y_test)
 
 
-# ======== Decision Boundaries Visualization =========
+# Decision Boundaries Visualization
 
 # Function to plot decision boundaries
 def plot_decision_boundaries(clfs, names, X, y):
